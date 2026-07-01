@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:;">
+  <title>Signal Lost</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23060d18'/><circle cx='16' cy='16' r='10' fill='none' stroke='%2300e5ff' stroke-width='2'/><circle cx='16' cy='16' r='5' fill='%2300e5ff'/><line x1='16' y1='2' x2='16' y2='6' stroke='%2300e5ff' stroke-width='2'/><line x1='16' y1='26' x2='16' y2='30' stroke='%2300e5ff' stroke-width='2'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN CANVAS
+══════════════════════════════════════════════════════════════ -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MENU SCREEN
+══════════════════════════════════════════════════════════════ -->
+<div id="menuScreen">
+  <div class="menu-signal-ring"></div>
+  <h1>SIGNAL LOST</h1>
+  <p class="menu-sub">Exploração Procedural · Sobrevivência · Resgate</p>
+  <p class="menu-lore">UNIDADE-7 acordou em um mundo desconhecido.<br>Ative as antenas. Envie o sinal. Aguarde o resgate.</p>
+
+  <div class="menu-seed-row">
+    <span>Seed:</span>
+    <input id="seedInput" type="text" value="signal" maxlength="28" autocomplete="off" spellcheck="false">
+  </div>
+
+  <!-- Tamanho do mapa -->
+  <div class="menu-mapsize-row">
+    <span class="mapsize-label">Mapa:</span>
+    <button class="mapsize-btn" data-w="400" data-h="300">🗺 Pequeno</button>
+    <button class="mapsize-btn active" data-w="800" data-h="600">🗺 Médio</button>
+    <button class="mapsize-btn" data-w="1200" data-h="900">🗺 Grande</button>
+    <button class="mapsize-btn" data-w="1600" data-h="1200">🗺 Épico</button>
+  </div>
+
+  <!-- Importar mapa personalizado -->
+  <div class="menu-import-row">
+    <label class="import-label" for="mapImport">📂 Importar Mapa JSON:</label>
+    <input id="mapImport" type="file" accept=".json" style="display:none">
+    <button class="btn btn-sm btn-secondary" onclick="document.getElementById('mapImport').click()">Escolher arquivo</button>
+    <span id="mapImportName" style="font-size:9px;color:rgba(0,229,255,0.6);margin-left:6px;">nenhum</span>
+    <button class="btn btn-sm btn-secondary" id="btnClearImport" style="opacity:0.5;">✕</button>
+    <button class="btn btn-sm btn-secondary" id="btnExportMap" title="Exportar mapa atual como JSON">⬇ Exportar</button>
+  </div>
+
+  <!-- Seleção de modo -->
+  <div class="menu-mode-row">
+    <button class="mode-btn active" data-mode="finite">🎯 Finito</button>
+    <button class="mode-btn" data-mode="infinite">∞ Infinito</button>
+    <button class="mode-btn" data-mode="creative">🎨 Criativo</button>
+  </div>
+
+  <div class="btn-group">
+    <button id="btnStart"  class="btn btn-primary">▶ Iniciar</button>
+    <button id="btnRandom" class="btn btn-secondary">⚄ Mundo Aleatório</button>
+  </div>
+
+  <div class="menu-hints">
+    <kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Mover &nbsp;|&nbsp;
+    <kbd>Clique Esq</kbd> Disparar / Ação &nbsp;|&nbsp;
+    <kbd>1-7</kbd> Armas<br>
+    <kbd>Q</kbd> Laser &nbsp;<kbd>E</kbd> Construir &nbsp;<kbd>R</kbd> Destruir &nbsp;<kbd>B</kbd> Ciclar Bloco &nbsp;<kbd>U</kbd> Upgrades<br>
+    <kbd>F</kbd> Teleporte ao cursor (gasta toda energia · 4s cooldown)<br>
+    <kbd>V</kbd> Navegação A.R.I.A — rota holográfica até antena<br>
+    <kbd>I</kbd> Inventário &amp; Crafting &nbsp;|&nbsp; <kbd>T</kbd> Usar item selecionado &nbsp;|&nbsp; <kbd>C</kbd> Craftar (inventário aberto)<br>
+    <kbd>X</kbd> Descartar item sob o mouse (inventário aberto) &nbsp;<kbd>Shift+X</kbd> Descartar pilha toda<br>
+    <kbd>G</kbd> Scanner — segure sobre tile próximo (≤3 tiles) para catalogar material<br>
+    Minérios: 🪨 Carvão/Cobre em rochas · ⚙ Ferro/Ouro no subsolo · 💎 Cristal profundo<br>
+    Modo Criativo: biomas não afetam stats · construção ilimitada · sem inimigos
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HUD
+══════════════════════════════════════════════════════════════ -->
+<div id="hud" class="hidden">
+
+  <!-- top-left: stat bars -->
+  <div class="hud-top">
+    <div class="hud-panel stat-bars">
+      <div class="bar-row">
+        <span class="bar-label">VIDA</span>
+        <div class="bar-track"><div id="barHealth" class="bar-fill health" style="width:100%"></div></div>
+        <span class="bar-val" id="valHealth">100</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">ENERGIA</span>
+        <div class="bar-track"><div id="barEnergy" class="bar-fill energy" style="width:100%"></div></div>
+        <span class="bar-val" id="valEnergy">100</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">CALOR</span>
+        <div class="bar-track"><div id="barHeat" class="bar-fill heat" style="width:0%"></div></div>
+        <span class="bar-val" id="valHeat">0</span>
+      </div>
+    </div>
+
+    <!-- top-center: wave + score + signal progress -->
+    <div class="hud-wave">
+      <div class="wave-label">ONDA</div>
+      <div class="wave-num" id="hudWaveNum">0</div>
+      <div class="hud-label" style="margin-top:4px;font-size:9px;">SCORE: <span id="hudScore">0</span></div>
+      <div class="signal-bar-container" title="Progresso do Sinal de Resgate">
+        <span class="signal-bar-label">SINAL</span>
+        <div class="signal-bar-track"><div id="barSignal" class="signal-bar-fill" style="width:0%"></div></div>
+        <span class="signal-bar-pct" id="valSignal">0%</span>
+      </div>
+    </div>
+
+    <!-- top-right: tools + menu btn -->
+    <div class="hud-actions">
+      <div class="hud-panel" style="display:flex;gap:4px;flex-direction:column;">
+        <div class="hud-label">FERRAMENTA</div>
+        <div style="display:flex;gap:4px;">
+          <button class="tool-btn-hud active" data-tool="laser">⚡ LASER</button>
+          <button class="tool-btn-hud" data-tool="build">🧱 CONSTRUIR</button>
+          <button class="tool-btn-hud" data-tool="destroy">💥 DESTRUIR</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <span id="hudModeLabel" style="font-family:var(--font-ui);font-size:9px;letter-spacing:.1em;color:var(--cyan);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:3px 10px;">🎯 FINITO</span>
+        <button id="btnARIANav" class="btn btn-sm btn-secondary" style="pointer-events:auto;padding:5px 12px;font-size:10px;" title="Navegação ARIA (V)">📡 A.R.I.A</button>
+      </div>
+      <button id="btnMenu" class="btn btn-sm btn-secondary" style="pointer-events:auto;">☰ Menu</button>
+    </div>
+  </div>
+
+  <!-- biome tag (bottom center) -->
+  <div id="biomeTag"></div>
+
+  <!-- Day/night indicator (top center, subtle) -->
+  <div id="dayNightHUD" style="position:absolute;top:62px;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:9px;color:rgba(200,220,255,0.45);pointer-events:none;letter-spacing:.1em;"></div>
+
+  <!-- alert flash (bottom-left, handled by CSS) -->
+  <div id="hudAlert" class="hud-alert"></div>
+
+  <!-- cave overlay -->
+  <div id="caveOverlay"></div>
+
+  <!-- minimap (bottom-right) -->
+  <div id="minimap">
+    <canvas id="minimapCanvas"></canvas>
+  </div>
+
+</div><!-- /#hud -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     END SCREEN
+══════════════════════════════════════════════════════════════ -->
+<div id="endScreen">
+  <h2 id="endTitle">DESTRUÍDO</h2>
+  <p id="endScore">Pontuação: 0 · Onda: 0</p>
+  <div class="btn-group">
+    <button id="btnRestart" class="btn btn-primary">↺ Jogar Novamente</button>
+    <button id="btnMenuEnd" class="btn btn-secondary">☰ Menu Principal</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     GAME SCRIPT
+══════════════════════════════════════════════════════════════ -->
+<script src="biomes.js"></script>
+<script src="ai-enemy.js"></script>
+<script src="ai-survival.js"></script>
+<script src="systems.js"></script>
+<script src="game.js"></script>
+<script src="world-gen.js"></script>
+<script src="scanner.js"></script>
+</body>
+</html>
